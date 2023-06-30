@@ -1,4 +1,4 @@
-name: 'Upload a Build Artifact'
+name: 'Upload a Build Artifact and post PR comment with link'
 description: 'Upload a build artifact that can be used by subsequent workflow steps'
 author: 'GitHub'
 inputs: 
