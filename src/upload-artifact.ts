@@ -1,11 +1,14 @@
 import * as core from '@actions/core'
-import {create, UploadOptions} from '@actions/artifact'
 import {findFilesToUpload} from './search'
 import {getInputs} from './input-helper'
 import {NoFileOptions} from './constants'
+import { Octokit } from 'octokit'
+import * as github from "@actions/github";
+import { DefaultArtifactClient } from './artifact-client'
 
 async function run(): Promise<void> {
   try {
+    const github_token = core.getInput('GITHUB_TOKEN');
     const inputs = getInputs()
     const searchResult = await findFilesToUpload(inputs.searchPath)
     if (searchResult.filesToUpload.length === 0) {
@@ -43,20 +46,28 @@ async function run(): Promise<void> {
         )
       }
 
-      const artifactClient = create()
-      const options: UploadOptions = {
-        continueOnError: false
-      }
-      if (inputs.retentionDays) {
-        options.retentionDays = inputs.retentionDays
-      }
+      const artifactClient = DefaultArtifactClient.create()
 
       const uploadResponse = await artifactClient.uploadArtifact(
         inputs.artifactName,
         searchResult.filesToUpload,
         searchResult.rootDirectory,
-        options
       )
+
+      const url = uploadResponse.containerUrl
+      const octokit = new Octokit({
+        auth: github_token
+      });
+
+      const pull_request_number = github.context.payload.pull_request?.number;
+      if (pull_request_number){
+        await octokit.rest.issues.createComment({
+         ...github.context.repo,
+         issue_number: pull_request_number,
+         body: `${url}`,
+         
+        })
+      }
 
       if (uploadResponse.failedItems.length > 0) {
         core.setFailed(
